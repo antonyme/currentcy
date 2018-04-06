@@ -1,5 +1,9 @@
 {
   "name": "currentcy",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/antonyme/currentcy.git"
+  },
   "version": "1.0.0",
   "description": "Keep a dropbox file updated with monthly currency exchange values",
   "main": "index.js",
