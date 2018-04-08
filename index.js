@@ -1,5 +1,6 @@
 require('dotenv').config()
 require('isomorphic-fetch')
+const util = require('util')
 const http = require('http')
 const axios = require('axios')
 const Dropbox = require('dropbox').Dropbox
@@ -49,7 +50,7 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({message:`File '${value}' succesfully updated with exchange data for ${month}/${year}`}))
     }).catch(function (e) {
       res.statusCode = 400
-      console.log('error: ' + JSON.stringify(e))
+      console.log('error: ' + util.inspect(e))
       res.end(JSON.stringify({error:e}))
     })
   } else {
@@ -63,12 +64,20 @@ server.listen(port, hostname, () => {
 });
 
 async function getEURConv () {
-  let response = await api.get(`/historical/${year}-${month}-01.json`)
+  try {
+    let response = await api.get(`/historical/${year}-${month}-01.json`)
+  } catch (e) {
+    if(e.response.status == 400) {
+      return Promise.reject(e.response.data)
+    } else {
+      return Promise.reject(e)
+    }
+  }
 //  let response = {data:{rates:{USD:1, EUR:1.5, CAD:0.7}}}
   let rates = response.data.rates
   let eurRate = rates.EUR
   Object.keys(rates).map(function (key, index) {
-    rates[key] = Math.round(100*rates[key]/eurRate)/100
+    rates[key] = (rates[key]/eurRate).toPrecision(6)
   })
   return rates
 }
@@ -115,5 +124,5 @@ function createNewBinary (oldBinary, newText) {
 }
 
 function dateAlreadyAdded (binary) {
-  return binary.toString().includes(`${year}${month}`)
+  return binary.toString().includes(`${year}${month},`)
 }

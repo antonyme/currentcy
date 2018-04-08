@@ -2,10 +2,17 @@
 The objective is to have a CSV file in your dropbox containing monthly exchange rate data with EUR as a base.<br />
 The resulting CSV follows this format:
 ```
-201709,EUR,1
-201709,USD,1.19
-201710,EUR,1
-201710,USD,1.18
+201804,EUR,1.00000
+201804,FJD,2.50378
+201804,FKP,0.877244
+201804,GBP,0.877244
+201804,GEL,2.99265
+201804,GGP,0.877244
+201804,GHS,5.43969
+201804,GIP,0.877244
+201804,GMD,58.3465
+201804,GNF,11099.6
+201804,GTQ,9.12441
 ```
 It should be easy to add a new month of data to the file so that in the end a little script could be automatically run every month to update the CSV for you.
 ## Structure of the solution
