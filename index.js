@@ -74,9 +74,19 @@ async function getEURConv () {
 }
 
 async function getFileBinary () {
-  response = await dbx.filesDownload({
-    path: filePath
-  })
+  try {
+    response = await dbx.filesDownload({
+      path: filePath
+    })
+  }
+  catch (e) {
+    if(e.status == 409) {
+      console.log('File does not exist, it will be created')
+      return Buffer.alloc(0)
+    } else {
+      return Promise.reject(e)
+    }
+  }
   return response && response.fileBinary
 }
 
