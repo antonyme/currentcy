@@ -6,10 +6,11 @@
   },
   "version": "1.0.0",
   "description": "Keep a dropbox file updated with monthly currency exchange values",
-  "main": "index.js",
+  "main": "currentcy.js",
   "scripts": {
-    "dev": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "serv": "node currentcy.js serv",
+    "script": "node currentcy.js script",
+    "test": "FILE_PATH=/test.csv node currentcy.js"
   },
   "author": "antonyme",
   "license": "ISC",
@@ -18,5 +19,6 @@
     "dotenv": "^5.0.1",
     "dropbox": "^4.0.1",
     "isomorphic-fetch": "^2.2.1"
-  }
+  },
+  "devDependencies": {}
 }
