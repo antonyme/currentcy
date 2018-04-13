@@ -3,14 +3,17 @@ require('isomorphic-fetch')
 const util = require('util')
 const http = require('http')
 const axios = require('axios')
+const Confirm = require('prompt-confirm')
 const Dropbox = require('dropbox').Dropbox
 
 // load .env config and secrets
+const nodeEnv = process.env.NODE_ENV || "development"
 const hostname = process.env.HOST
 const port = process.env.PORT
+const baseRate = process.env.BASE_RATE
 const rateApiKey = process.env.RATE_API_KEY
 const dbxToken = process.env.DBX_TOKEN
-const filePath = process.env.FILE_PATH
+const filePath = nodeEnv === "production" ? process.env.FILE_PATH : process.env.DEV_FILE_PATH
 
 // app variables
 var api = axios.create({
@@ -26,15 +29,11 @@ class monthDate {
     this.year = year.toString();
     this.month = month.toString();
   }
-
-  toST1() {
-    return `${this.year}-${this.month}`
-  }
-
-  toST2() {
-    return `${this.year}${this.month}`
-  }
+  get toST1 () {return `${this.year}-${this.month}`}
+  get toST2 () {return `${this.year}${this.month}`}
 }
+var resultsLog = []
+var shouldPause = false
 
 // get script parameter
 switch (process.argv.length) {
@@ -52,7 +51,7 @@ switch (process.argv.length) {
     let match = /^(\d{4})-(\d{2})$/.exec(process.argv[3])
     if (match != null) {
       let date = new monthDate(match[1], match[2])
-      runScript(date)
+      runScript([date])
     } else formatError()
     break;
   }
@@ -70,11 +69,8 @@ switch (process.argv.length) {
         month = pad((parseInt(month) % 12) + 1)
         year = month == 1 ? parseInt(year) + 1 : year
       }
-      addDataForDates(datesToDo).then(function (nbLines) {
-        console.log(`Success: ${nbLines} exchange rates added to ${filePath}`)
-      }).catch(function (e) {
-        console.log('Error: ' + util.inspect(e))
-      })
+      shouldPause = true
+      runScript(datesToDo)
     } else formatError()
     break;
   }
@@ -104,8 +100,8 @@ function startServer () {
       res.setHeader('Content-Type', 'application/json')
       addDataForDate(date).then(function (nbLines) {
         res.statusCode = 200
-        console.log(`Success: ${nbLines} exchange rates added to ${filePath} for ${date.toST1()}}`)
-        res.end(`{"Success": "${nbLines} exchange rates added to ${filePath} for ${date.toST1()}"}`)
+        console.log(`Success: ${nbLines} exchange rates added to ${filePath} for ${date.toST1}}`)
+        res.end(`{"Success": "${nbLines} exchange rates added to ${filePath} for ${date.toST1}"}`)
       }).catch(function (e) {
         res.statusCode = 400
         console.log('Error: ' + util.inspect(e))
@@ -123,31 +119,26 @@ function startServer () {
 }
 
 function runScript (date) {
-  console.log('run for ', date.toST1())
-  addDataForDate(date).then(function (nbLines) {
-    console.log(`Success: ${nbLines} exchange rates added to ${filePath} for ` + date.toST1())
+  addDataForDates(date).then(function (nbLines) {
+    console.log(`Success: ${nbLines} exchange rates added to ${filePath}`)
   }).catch(function (e) {
     console.log('Error: ' + util.inspect(e))
   })
 }
 
-async function addDataForDate (dateToDo) {
-  return await addDataForDates([dateToDo])
-}
-
 async function addDataForDates (datesToDo) {
   let binary = await getFileBinary()
-  let filteredDatesToDo = datesToDo.filter(date => {
-    if(dateAlreadyAdded(date, binary)) {
-      console.log(date.toST1() + ` has already been added`)
-      return false
-    } else return true
-  });
+  let filteredDatesToDo = filterDatesToDo(datesToDo, binary)
   let eurConvTab = await Promise.all(filteredDatesToDo.map(getEURConv))
-  let toWrite = filteredDatesToDo.map((obj, idx) => encodeConv(obj, eurConvTab[idx])).join('')
+  eurConvTab = eurConvTab.filter(p => p) // remove null values from API fails
+  printResultLog()
+  if (eurConvTab.length == 0) return Promise.reject(400) // nothing to add
+  let save = await askConfirmation()
+  if (!save) return Promise.reject(401) // user refused to save
+  let toWrite = eurConvTab.map(encodeConv).join('')
   let newBinary = createNewBinary(binary, toWrite)
   let fileUpdated = await setFileBinary(newBinary)
-  return eurConvTab.reduce((acc,cur) => acc + Object.keys(cur).length, 0)
+  return eurConvTab.length
 }
 
 async function getEURConv (date) {
@@ -155,28 +146,45 @@ async function getEURConv (date) {
   function fakeAPI () {
     return new Promise(resolve => {
       setTimeout(() => {
-        console.log('got data for ', date.toST1())
-        resolve({EUR:1, USD:parseInt(date.year), DBS: parseInt(date.month)})
+        if (Math.random() > 0.5) {
+          resultsLog.push({date:date.toST1, qt:3, msg:"OK"})
+          resolve({date:date,data:{EUR:1, USD:parseInt(date.year), DBS:parseInt(date.month)}})
+        } else {
+          resultsLog.push({date:date.toST1, qt:0, msg:"API Error"})
+          resolve(null)
+        }
       }, Math.random()*1000)
     })
   }
-  return await fakeAPI()
-  // try {
-  //   response = await api.get(`/historical/` + date.toST1() + `-01.json`)
-  // } catch (e) {
-  //   if(e.response.status == 400) {
-  //     return Promise.reject(e.response.data)
-  //   } else {
-  //     return Promise.reject(e)
-  //   }
-  // }
-  // let rates = response.data.rates
-  // // Convert USD based rates to EUR based
-  // let eurRate = rates.EUR
-  // Object.keys(rates).map(function (key, index) {
-  //   rates[key] = (rates[key]/eurRate).toPrecision(6)
-  // })
-  // return rates
+  async function trueAPI() {
+    response = await api.get(`/historical/` + date.toST1 + `-01.json`)
+    let rates = response.data.rates
+    console.log(date.toST1, ': ', rates.length, ' records downloaded')
+    // Convert USD based rates to the base configured in .env
+    Object.keys(rates).map(function (key, index) {
+      rates[key] = (rates[key]/rates[baseRate]).toPrecision(6)
+    })
+    return rates
+  }
+  if (nodeEnv === "production") {
+    return await trueAPI()
+  }
+  else {
+    return await fakeAPI()
+  }
+  return (nodeEnv === "production") ? (await trueAPI()) : (await fakeAPI())
+}
+
+function printResultLog () {
+  resultsLog.sort((a, b) => a.date > b.date ? 1 : -1)
+  console.log('Data retreived:')
+  console.log('Date\t\t Quantity\t Info')
+  resultsLog.forEach(res => console.log(res.date, '\t', res.qt, '\t\t', res.msg))
+}
+
+function askConfirmation () {
+  prompt = new Confirm('Save results?')
+  return prompt.run()
 }
 
 async function getFileBinary () {
@@ -196,6 +204,19 @@ async function getFileBinary () {
   return response && response.fileBinary
 }
 
+function filterDatesToDo (datesToDo, binary) {
+  return datesToDo.filter(date => {
+    if(dateAlreadyAdded(date, binary)) {
+      resultsLog.push({
+        date: date.toST1,
+        qt: 0,
+        msg: 'date already in file'
+      })
+      return false
+    } else return true
+  });
+}
+
 async function setFileBinary (binary) {
   response = await dbx.filesUpload({
     contents:binary,
@@ -207,10 +228,10 @@ async function setFileBinary (binary) {
   return response && response.path_display
 }
 
-function encodeConv (date, conv) {
+function encodeConv (convYear) {
   let result = ''
-  Object.keys(conv).map(function (key,index) {
-    result += date.toST2() + `,${key},${conv[key]}\n`
+  Object.keys(convYear.data).map(function (key,index) {
+    result += `${convYear.date.toST2},${key},${convYear.data[key]}\n`
   })
   return result
 }
@@ -221,7 +242,7 @@ function createNewBinary (oldBinary, newText) {
 }
 
 function dateAlreadyAdded (date, binary) {
-  return binary.toString().includes(date.toST2() + `,`)
+  return binary.toString().includes(date.toST2 + `,`)
 }
 
 function pad(n){

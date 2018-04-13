@@ -8,9 +8,9 @@
   "description": "Keep a dropbox file updated with monthly currency exchange values",
   "main": "currentcy.js",
   "scripts": {
-    "serv": "node currentcy.js serv",
-    "script": "node currentcy.js script",
-    "test": "FILE_PATH=/test.csv node currentcy.js"
+    "serv": "NODE_ENV=production node currentcy.js serv",
+    "script": "NODE_ENV=production node currentcy.js script",
+    "test": "NODE_ENV=development node currentcy.js"
   },
   "author": "antonyme",
   "license": "ISC",
@@ -18,7 +18,8 @@
     "axios": "^0.18.0",
     "dotenv": "^5.0.1",
     "dropbox": "^4.0.1",
-    "isomorphic-fetch": "^2.2.1"
+    "isomorphic-fetch": "^2.2.1",
+    "prompt-confirm": "^1.2.0"
   },
   "devDependencies": {}
 }
