@@ -43,7 +43,7 @@ switch (process.argv.length) {
     } else if (process.argv[2] == "script") { // currentcy.js script
       let now = new Date()
       let date = new monthDate(now.getFullYear(), pad(now.getMonth() + 1))
-      runScript(date)
+      runScript([date])
     } else formatError()
     break;
   }
@@ -97,15 +97,21 @@ function startServer () {
     let resObj = null
     if (match !== null) {
       date = new monthDate(match[1], match[2])
+      resultsLog = []
       res.setHeader('Content-Type', 'application/json')
-      addDataForDate(date).then(function (nbLines) {
+      addDataForDates([date]).then(function (nbDates) {
         res.statusCode = 200
-        console.log(`Success: ${nbLines} exchange rates added to ${filePath} for ${date.toST1}}`)
-        res.end(`{"Success": "${nbLines} exchange rates added to ${filePath} for ${date.toST1}"}`)
+        console.log(`Success: exchange rates added to ${filePath}`)
+        res.end(JSON.stringify({Success: `exchange rates for ${date.toST1} added to ${filePath}`}))
       }).catch(function (e) {
         res.statusCode = 400
-        console.log('Error: ' + util.inspect(e))
-        res.end(JSON.stringify({Error:e}))
+        if (e == 400) {
+          console.log(`Nothing to add, ${filePath} was not modified`)
+          res.end(JSON.stringify({Error:resultsLog[0].msg}))
+        } else {
+          console.log('Error: ' + util.inspect(e))
+          res.end(JSON.stringify({Error:e}))
+        }
       })
     } else {
       res.statusCode = 401
@@ -119,10 +125,16 @@ function startServer () {
 }
 
 function runScript (date) {
-  addDataForDates(date).then(function (nbLines) {
-    console.log(`Success: ${nbLines} exchange rates added to ${filePath}`)
+  addDataForDates(date).then(function (nbDates) {
+    console.log(`Success: exchange rates for ${nbDates} date(s) added to ${filePath}`)
   }).catch(function (e) {
-    console.log('Error: ' + util.inspect(e))
+    if (e == 400) {
+      console.log(`Nothing to add, ${filePath} was not modified`)
+    } else if (e == 401) {
+      console.log(`Results not saved, ${filePath} was not modified`)
+    } else {
+      console.log('Error: ' + util.inspect(e))
+    }
   })
 }
 
@@ -133,8 +145,10 @@ async function addDataForDates (datesToDo) {
   eurConvTab = eurConvTab.filter(p => p) // remove null values from API fails
   printResultLog()
   if (eurConvTab.length == 0) return Promise.reject(400) // nothing to add
-  let save = await askConfirmation()
-  if (!save) return Promise.reject(401) // user refused to save
+  if (shouldPause) {
+    let save = await askConfirmation()
+    if (!save) return Promise.reject(401) // user refused to save
+  }
   let toWrite = eurConvTab.map(encodeConv).join('')
   let newBinary = createNewBinary(binary, toWrite)
   let fileUpdated = await setFileBinary(newBinary)
@@ -156,21 +170,31 @@ async function getEURConv (date) {
       }, Math.random()*1000)
     })
   }
-  async function trueAPI() {
-    response = await api.get(`/historical/` + date.toST1 + `-01.json`)
-    let rates = response.data.rates
-    console.log(date.toST1, ': ', rates.length, ' records downloaded')
-    // Convert USD based rates to the base configured in .env
-    Object.keys(rates).map(function (key, index) {
-      rates[key] = (rates[key]/rates[baseRate]).toPrecision(6)
+  function trueAPI() {
+    return new Promise((resolve,reject) => {
+      api.get(`/historical/` + date.toST1 + `-01.json`).then(response => {
+        let rates = response.data.rates
+        resultsLog.push({date:date.toST1, qt:Object.keys(rates).length, msg:"OK"})
+        // Convert USD based rates to the base configured in .env
+        Object.keys(rates).map(function (key, index) {
+          rates[key] = (rates[key]/rates[baseRate]).toPrecision(6)
+        })
+        resolve({date:date, data:rates})
+      }).catch(error => {
+        if (error.response && error.response.data.message) {
+          let message = error.response.data.message
+          resultsLog.push({date:date.toST1, qt:0, msg:`API Error: ${message}`})
+          resolve(null)
+        } else if (error.response) {
+          reject(error)
+        } else if (error.request) {
+          resultsLog.push({date:date.toST1, qt:0, msg:"Network Error"})
+          resolve(null)
+        } else {
+          reject(error)
+        }
+      })
     })
-    return rates
-  }
-  if (nodeEnv === "production") {
-    return await trueAPI()
-  }
-  else {
-    return await fakeAPI()
   }
   return (nodeEnv === "production") ? (await trueAPI()) : (await fakeAPI())
 }
