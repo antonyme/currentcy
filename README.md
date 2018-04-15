@@ -63,6 +63,6 @@ curl http://localhost:3000/add/[2015-2017]-[01-12]
 `npm run script`
 ### Add a specific month
 `npm run script 2016-03`
-### Add multiple month
+### Add multiple months
 `npm run script 2010-05 2018-04`
 This will add all the months in the defined range (inclusive of start and end dates).
