@@ -8,6 +8,7 @@
   "description": "Keep a dropbox file updated with monthly currency exchange values",
   "main": "currentcy.js",
   "scripts": {
+    "start": "npm run script",
     "serv": "NODE_ENV=production node currentcy.js serv",
     "script": "NODE_ENV=production node currentcy.js script",
     "test": "NODE_ENV=development node currentcy.js"

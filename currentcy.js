@@ -212,6 +212,7 @@ function askConfirmation () {
 }
 
 async function getFileBinary () {
+  let response
   try {
     response = await dbx.filesDownload({
       path: filePath
