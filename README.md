@@ -1,5 +1,5 @@
 # currentcy
-The objective is to have a CSV file in your dropbox containing monthly exchange rate data with EUR as a base.<br />
+The objective is to have a CSV file in your dropbox containing monthly exchange rate data.<br />
 The resulting CSV follows this format:
 ```
 201804,EUR,1.00000
@@ -16,7 +16,11 @@ The resulting CSV follows this format:
 ```
 It should be easy to add a new month of data to the file so that in the end a little script could be automatically run every month to update the CSV for you.
 ## Structure of the solution
-It is a very simple node.js (without express.js) back-end server that has an access to your dropbox (to update the csv) and to an api (to get currency data) that will add exchange rates to the CSV on a GET request, for a specific month to be indicated in the URL
+It is a node.js script that has an access to your dropbox (to update the csv) and to an api (to get currency data).
+### Serveur mode (npm run serv)
+It is a very simple node.js (without express.js) back-end server that will add exchange rates to the CSV on a GET request, for a specific month to be indicated in the URL.
+### Script mode (npm run script)
+By running the script mode you can directly add exchange rates to the CSV for the last month, a specific month or a range of month
 ## Getting started
 ### Prerequisites
 #### Linux environment
@@ -29,15 +33,21 @@ Choose "Dropbox API".<br />
 Then for the type of access I took "full dropbox" because I wanted my CSV to be in a specific shared folder. You can choose "App Folder" if your ok with your CSV being in "Apps/your_app_name/".<br />
 Finally you need to go in your new app settings to generate an access token.
 ### .env
-You need to create a ".env" file in your local copy with your own environment parameter. You can reuse the content in "example.env".<br />
+You need to create a ".env" file at the root of your local copy with your own environment parameters. You can reuse the content in "example.env".<br />
+* BASE_RATE is the 3 letters code of the currency to be used as the base of the exchange rates.
 * RATE_API_KEY is the openexchangerates API key you retreived in the previous step.
 * DBX_TOKEN is the Dropbox token you retreived in the previous step.
 * FILE_PATH is the path from the root of your Dropbox (if you choose "Full Dropbox" access type) to the CSV file you want to create and maintain. Format to respect :"/path/to/file.csv" (e.g. "/currency.csv").
-## Run it!
+* DEV_PATH is the path that will be used instead of FILE_PATH when running in development mode (`npm run test`).
+### install dependencies
+In your local copy:
+```
+npm install
+```
+## Run the server
 This is for running and calling the server on localhost:3000 (assuming you kept the defaults in .env)
 ### Launch the server
 ```
-npm install
 npm run dev
 ```
 ### Make a call for march 2016
@@ -48,3 +58,11 @@ Install curl if you don't have it. And make sequencial URL call according to htt
 apt-get install curl
 curl http://localhost:3000/add/[2015-2017]-[01-12]
 ```
+## Run the script
+### Add last month
+`npm run script`
+### Add a specific month
+`npm run script 2016-03`
+### Add multiple month
+`npm run script 2010-05 2018-04`
+This will add all the months in the defined range (inclusive of start and end dates).
