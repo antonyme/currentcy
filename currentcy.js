@@ -10,7 +10,7 @@ const Dropbox = require('dropbox').Dropbox
 const nodeEnv = process.env.NODE_ENV || "development"
 const hostname = process.env.HOST
 const port = process.env.PORT
-const baseRate = process.env.BASE_RATE
+const baseRateKey = process.env.BASE_RATE
 const rateApiKey = process.env.RATE_API_KEY
 const dbxToken = process.env.DBX_TOKEN
 const filePath = nodeEnv === "production" ? process.env.FILE_PATH : process.env.DEV_FILE_PATH
@@ -174,10 +174,11 @@ async function getEURConv (date) {
     return new Promise((resolve,reject) => {
       api.get(`/historical/` + date.toST1 + `-01.json`).then(response => {
         let rates = response.data.rates
+        let baseRate = rates[baseRateKey]
         resultsLog.push({date:date.toST1, qt:Object.keys(rates).length, msg:"OK"})
         // Convert USD based rates to the base configured in .env
         Object.keys(rates).map(function (key, index) {
-          rates[key] = (rates[key]/rates[baseRate]).toPrecision(6)
+          rates[key] = (rates[key]/baseRate).toPrecision(6)
         })
         resolve({date:date, data:rates})
       }).catch(error => {
